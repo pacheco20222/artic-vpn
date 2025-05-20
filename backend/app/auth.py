@@ -3,6 +3,8 @@ from fastapi import HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
 import os
 from dotenv import load_dotenv
+from app.models import users
+from app.database import database
 
 load_dotenv()
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
@@ -26,6 +28,17 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         user_id: int = payload.get("user_id")
         if username is None or user_id is None:
             raise credentials_exception
-        return {"username": username, "user_id": user_id}
+        query = users.select().where(users.c.id == user_id)
+        user_record = await database.fetch_one(query)
+        
+        if not user_record:
+            raise credentials_exception
+        
+        return {
+            "username": username,
+            "user_id": user_id,
+            "role": user_record["role"],    
+        }
+        
     except JWTError:
         raise credentials_exception

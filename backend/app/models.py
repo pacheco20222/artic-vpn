@@ -10,14 +10,15 @@ users = Table(
     Column("email", String(150), unique=True, nullable=False),
     Column("hashed_password", String(255), nullable=False),
     Column("is_active", Boolean, default=True),
-    Column("created_at", DateTime, default=datetime.datetime.utcnow)
+    Column("created_at", DateTime, default=datetime.datetime.utcnow),
+    Column("role", String(20), default="user")  
 )
 
 twofa_secrets = Table(
     "2fa_secrets",
     metadata,
     Column("id", Integer, primary_key=True),
-    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE")),
+    Column("user_id", Integer, ForeignKey("users.id")),
     Column("secret_key", String(255), nullable=False),
     Column("created_at", DateTime, default=datetime.datetime.utcnow)
 )
@@ -29,7 +30,7 @@ vpn_servers = Table(
     Column("name", String(100), nullable=False),
     Column("country", String(50)),
     Column("ip_address", String(100), nullable=False),
-    Column("config_path", String(255)),
+    Column("config_path", String(255)),  # path to OpenVPN/WireGuard config file
     Column("is_active", Boolean, default=True)
 )
 
