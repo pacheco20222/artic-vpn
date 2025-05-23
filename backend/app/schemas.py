@@ -1,4 +1,6 @@
 from pydantic import BaseModel
+from datetime import datetime
+from typing import Optional
 
 class UserCreate(BaseModel):
     username: str
@@ -26,3 +28,9 @@ class VPNServerUpdate(BaseModel):
     
 class TwoFAVerify(BaseModel):
     code: str
+    
+class MyConnection(BaseModel):
+    server_name: str
+    country: str
+    connected_at: datetime
+    disconnected_at: Optional[datetime]

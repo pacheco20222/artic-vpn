@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.schemas import UserCreate, UserLogin
 from app.database import database
-from app.models import users, connections, twofa_secrets
+from app.models import users, connections, twofa_secrets, vpn_servers
 import bcrypt
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer
@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from app.auth import get_current_user, create_access_token
 import datetime
 import pyotp
+from sqlalchemy import select, join
 
 load_dotenv()
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
@@ -126,12 +127,22 @@ async def disconnect_from_vpn(
     }
     
 @router.get("/my-connections")
-async def list_user_connections(
-    current_user: dict = Depends(get_current_user)
-):
-    query = connections.select().where(
-        connections.c.user_id == current_user["user_id"]
-    ).order_by(connections.c.connected_at.desc())
+async def list_user_connections(current_user: dict = Depends(get_current_user)):
+    # Perform a JOIN between connections and vpn_servers
+    j = join(connections, vpn_servers, connections.c.server_id == vpn_servers.c.id)
 
-    history = await database.fetch_all(query)
-    return {"connections": history}
+    query = (
+        select(
+            connections.c.connected_at,
+            connections.c.disconnected_at,
+            vpn_servers.c.name.label("server_name"),
+            vpn_servers.c.country.label("country"),
+            vpn_servers.c.ip_address.label("server_ip")
+        )
+        .select_from(j)
+        .where(connections.c.user_id == current_user["user_id"])
+        .order_by(connections.c.connected_at.desc())
+    )
+
+    result = await database.fetch_all(query)
+    return {"connections": result}

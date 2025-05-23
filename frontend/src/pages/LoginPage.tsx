@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [twofaCode, setTwofaCode] = useState("");
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,7 +18,9 @@ export default function LoginPage() {
       });
       const { access_token } = response.data;
       localStorage.setItem("access_token", access_token);
+      localStorage.setItem("user_id", response.data.user_id);
       alert("Login successful!");
+      navigate("/dashboard");
     } catch (error: any) {
       alert("Login failed: " + (error.response?.data?.detail || "Unknown error"));
     }
