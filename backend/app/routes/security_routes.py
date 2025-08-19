@@ -31,11 +31,16 @@ async def setup_2fa(current_user: dict = Depends(get_current_user)):
     buffer = io.BytesIO()
     qr.save(buffer, format="PNG")
     img_base64 = base64.b64encode(buffer.getvalue()).decode()
+    data_url = f"data:image/png;base64,{img_base64}"
 
     return {
         "message": "2FA setup complete",
-        "qr_code_base64": img_base64,  # display in frontend
-        "secret": secret  # for manual entry
+        # Frontend-friendly data URL for direct <img src="..." /> usage
+        "qr_data_url": data_url,
+        # Keep base64 for compatibility/debugging
+        "qr_code_base64": img_base64,
+        # Manual entry fallback
+        "secret": secret
     }
     
 @router.post("/2fa/verify")
@@ -53,7 +58,7 @@ async def verify_2fa(
     totp = pyotp.TOTP(secret)
     
     # Verify the OTP
-    if totp.verify(body.code):
+    if totp.verify(body.code, valid_window=1):
         return {"message": "2FA verification successful"}
     else:
         raise HTTPException(status_code=400, detail="Invalid 2FA code")

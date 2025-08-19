@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from app.schemas import UserCreate, UserLogin
+from app.schemas import UserCreate, UserLogin, ConnectRequest
 from app.database import database
 from app.models import users, connections, twofa_secrets, vpn_servers
 import bcrypt
@@ -36,6 +36,11 @@ async def register_user(user: UserCreate):
     await database.execute(insert_query)
     return {"message": f"User {user.username} registered successfully"}
 
+# Alias endpoint for /signup
+@router.post("/signup")
+async def signup_user(user: UserCreate):
+    return await register_user(user)
+
 @router.post("/login")
 async def login_user(user: UserLogin):
     # Look up user
@@ -68,7 +73,7 @@ async def login_user(user: UserLogin):
         "user_id": db_user["id"]
     }
     token = create_access_token(payload)
-    return {"access_token": token, "token_type": "bearer"}
+    return {"access_token": token, "token_type": "bearer", "user_id": db_user["id"]}
 
 
 @router.get("/profile")
@@ -80,50 +85,60 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
 
 @router.post("/connect")
 async def connect_to_server(
-    server_id: int,
+    payload: ConnectRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    # Check if the user is already connected to a server
-    query = connections.select().where(
-        (connections.c.user_id == current_user["user_id"]) &
-        (connections.c.disconnected_at == None)
+    # Ensure the server exists and is active
+    server = await database.fetch_one(
+        vpn_servers.select().where(vpn_servers.c.id == payload.server_id)
     )
-    existing = await database.fetch_one(query)
-    
+    if not server:
+        raise HTTPException(status_code=404, detail="Server not found")
+    if not server["is_active"]:
+        raise HTTPException(status_code=400, detail="Server is inactive")
+
+    # Check if the user is already connected
+    existing = await database.fetch_one(
+        connections.select().where(
+            (connections.c.user_id == current_user["user_id"]) &
+            (connections.c.disconnected_at == None)
+        )
+    )
     if existing:
         raise HTTPException(status_code=400, detail="Already connected to a server")
-    
+
     # Insert a new connection record
     insert_query = connections.insert().values(
         user_id=current_user["user_id"],
-        server_id=server_id,
+        server_id=payload.server_id,
     )
     await database.execute(insert_query)
-    return {"message": f"Connected to server {server_id}"}
+    return {"message": f"Connected to server {payload.server_id}"}
 
 @router.post("/disconnect")
 async def disconnect_from_vpn(
     current_user: dict = Depends(get_current_user)
 ):
-    # Find the connection record
+    # Find the latest active connection for this user
     query = connections.select().where(
         (connections.c.user_id == current_user["user_id"]) & 
         (connections.c.disconnected_at.is_(None))
     ).order_by(connections.c.connected_at.desc())
-    
+
     session = await database.fetch_one(query)
     if not session:
         raise HTTPException(status_code=400, detail="No active connection found")
-    
-    # Mark the connection as disconnected
+
+    now_utc = datetime.datetime.utcnow()
     update_query = connections.update().where(
         connections.c.id == session["id"]
-    ).values(disconnected_at=datetime.datetime.utcnow())
+    ).values(disconnected_at=now_utc)
     await database.execute(update_query)
-    
+
     return {
         "message": f"Disconnected from server {session['server_id']}",
-        "disconnected_at": datetime.datetime.utcnow()
+        "connection_id": session["id"],
+        "disconnected_at": now_utc
     }
     
 @router.get("/my-connections")
@@ -133,6 +148,8 @@ async def list_user_connections(current_user: dict = Depends(get_current_user)):
 
     query = (
         select(
+            connections.c.id.label("id"),
+            connections.c.server_id.label("server_id"),
             connections.c.connected_at,
             connections.c.disconnected_at,
             vpn_servers.c.name.label("server_name"),

@@ -1,17 +1,42 @@
-from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
+
+from pydantic import BaseModel
+
+# --- Auth / Users ---
 
 class UserCreate(BaseModel):
     username: str
     email: str
     password: str
 
+
 class UserLogin(BaseModel):
     username: str
     password: str
-    twofa_code: str | None = None # Optional for 2FA
-    
+    twofa_code: Optional[str] = None  # Optional for 2FA
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user_id: int
+
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+    email: str
+    role: str
+    is_active: bool
+    created_at: datetime
+
+    # Pydantic v2: from_attributes=True; if you're on v1, use: class Config: orm_mode = True
+    model_config = {"from_attributes": True}
+
+
+# --- VPN Servers ---
+
 class VPNServerCreate(BaseModel):
     name: str
     country: str
@@ -19,18 +44,58 @@ class VPNServerCreate(BaseModel):
     config_path: str
     is_active: bool = True
 
+
 class VPNServerUpdate(BaseModel):
-    name: str | None = None
-    country: str | None = None
-    ip_address: str | None = None
-    config_path: str | None = None
-    is_active: bool | None = None
-    
+    name: Optional[str] = None
+    country: Optional[str] = None
+    ip_address: Optional[str] = None
+    config_path: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class VPNServerOut(BaseModel):
+    id: int
+    name: str
+    country: Optional[str]
+    ip_address: str
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+# --- 2FA ---
+
 class TwoFAVerify(BaseModel):
     code: str
-    
+
+
+# --- Connections ---
+
+class ConnectRequest(BaseModel):
+    user_id: int
+    server_id: int
+
+
+class DisconnectRequest(BaseModel):
+    user_id: int
+
+
+class ConnectionOut(BaseModel):
+    id: int
+    user_id: int
+    server_id: int
+    connected_at: datetime
+    disconnected_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
 class MyConnection(BaseModel):
     server_name: str
-    country: str
+    country: Optional[str]
     connected_at: datetime
-    disconnected_at: Optional[datetime]
+    disconnected_at: Optional[datetime] = None
+
+
+class MyConnectionsResponse(BaseModel):
+    connections: List[MyConnection]

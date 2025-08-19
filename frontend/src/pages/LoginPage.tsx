@@ -1,28 +1,44 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import api from "../api/axios";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [twofaCode, setTwofaCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
     try {
-      const response = await api.post("/login", {
+      setLoading(true);
+      // IMPORTANT: backend login lives under /users/login
+      const response = await api.post("/users/login", {
         username,
         password,
-        twofa_code: twofaCode,
+        // if user has 2FA enabled, the backend expects this field
+        twofa_code: twofaCode || undefined,
       });
-      const { access_token } = response.data;
+
+      const { access_token, user_id } = response.data || {};
+      if (!access_token) throw new Error("No token returned by server");
+
       localStorage.setItem("access_token", access_token);
-      localStorage.setItem("user_id", response.data.user_id);
-      alert("Login successful!");
+      if (user_id !== undefined) localStorage.setItem("user_id", String(user_id));
+
+      // Set default auth header for subsequent requests
+      api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
+
       navigate("/dashboard");
-    } catch (error: any) {
-      alert("Login failed: " + (error.response?.data?.detail || "Unknown error"));
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.message || "Login failed.";
+      setError(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -37,12 +53,14 @@ export default function LoginPage() {
         <h2 className="mt-10 text-center text-2xl font-bold text-blue-900">
           Login to your Artic VPN account
         </h2>
-        <p className="text-center text-sm text-gray-500">
-          Secure. Simple. Arctic cool.
-        </p>
+        <p className="text-center text-sm text-gray-500">Secure. Simple. Arctic cool.</p>
       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
+        {error && (
+          <div className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label htmlFor="username" className="block text-sm font-medium text-blue-900">
@@ -74,12 +92,15 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="2fa" className="block text-sm font-medium text-blue-900">
+            <label htmlFor="twofa" className="block text-sm font-medium text-blue-900">
               2FA Code (if enabled)
             </label>
             <input
-              id="2fa"
-              name="2fa"
+              id="twofa"
+              name="twofa"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
               value={twofaCode}
               onChange={(e) => setTwofaCode(e.target.value)}
               placeholder="123456"
@@ -90,18 +111,19 @@ export default function LoginPage() {
           <div>
             <button
               type="submit"
-              className="w-full flex justify-center rounded-md bg-blue-900 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+              disabled={loading}
+              className="w-full flex justify-center rounded-md bg-blue-900 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60"
             >
-              Login
+              {loading ? "Signing in..." : "Login"}
             </button>
           </div>
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-500">
           Don’t have an account?{" "}
-          <a href="#" className="font-semibold text-blue-900 hover:text-blue-800">
+          <Link to="/signup" className="font-semibold text-blue-900 hover:text-blue-800">
             Sign up
-          </a>
+          </Link>
         </p>
       </div>
     </div>

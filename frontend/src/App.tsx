@@ -4,6 +4,7 @@ import DashboardPage from './pages/DashboardPage';
 import Navbar from './components/Navbar';
 import ServerList from './pages/ServerList';
 import Myconnections from './pages/MyConnections';
+import SignupPage from './pages/SignupPage';
 
 const isAuthenticated = () => {
   return !!localStorage.getItem('access_token');
@@ -41,6 +42,10 @@ export default function App() {
           <Route
           path='/my-connections'
           element={isAuthenticated() ? <Myconnections /> : <Navigate to="/" />}
+          />
+          <Route 
+          path='/signup'
+          element={<SignupPage />}
           />
         </Routes>
       </main>
