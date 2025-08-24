@@ -1,11 +1,12 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Disclosure, Menu, Transition } from '@headlessui/react'
 import { Bars3Icon, XMarkIcon, BellIcon } from '@heroicons/react/24/outline'
 import { Fragment } from 'react'
+import { useConnection } from '../context/ConnectionContext'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard' },
-  { name: 'My Connections', href: '/my-connections' },
+  { name: 'My Connections', href: '/users/my-connections' },
   { name: 'Server List', href: '/servers' },
   { name: 'Settings', href: '/settings' }
 ]
@@ -16,9 +17,11 @@ function classNames(...classes: string[]) {
 
 export default function Navbar() {
   const navigate = useNavigate()
+  const { connection, disconnect, loading } = useConnection();
 
   const handleLogout = () => {
     localStorage.removeItem('access_token')
+    localStorage.removeItem('user_id')
     navigate('/')
   }
 
@@ -37,19 +40,37 @@ export default function Navbar() {
                 />
                 <div className="ml-10 flex items-baseline space-x-4">
                   {navigation.map((item) => (
-                    <a
+                    <Link
                       key={item.name}
-                      href={item.href}
+                      to={item.href}
                       className="text-gray-300 hover:bg-gray-700 hover:text-white rounded-md px-3 py-2 text-sm font-medium"
                     >
                       {item.name}
-                    </a>
+                    </Link>
                   ))}
                 </div>
               </div>
 
               {/* Right side */}
               <div className="flex items-center space-x-4">
+                {connection ? (
+                  <div className="flex items-center space-x-2">
+                    <span className="rounded-md bg-emerald-600 px-2 py-1 text-xs text-white">
+                      Connected • {connection.server?.name ?? `#${connection.server_id}`}
+                    </span>
+                    <button
+                      onClick={disconnect}
+                      disabled={loading}
+                      className="rounded-md bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-500 disabled:opacity-50"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                ) : (
+                  <span className="rounded-md bg-gray-700 px-2 py-1 text-xs text-gray-200">
+                    Not connected
+                  </span>
+                )}
                 <button
                   type="button"
                   className="rounded-full bg-gray-800 p-1 text-gray-400 hover:text-white"
@@ -81,28 +102,28 @@ export default function Navbar() {
                     <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5 focus:outline-none">
                       <Menu.Item>
                         {({ active }) => (
-                          <a
-                            href="/profile"
+                          <Link
+                            to="/users/profile"
                             className={classNames(
                               active ? 'bg-gray-100' : '',
                               'block px-4 py-2 text-sm text-gray-700'
                             )}
                           >
                             Profile
-                          </a>
+                          </Link>
                         )}
                       </Menu.Item>
                       <Menu.Item>
                         {({ active }) => (
-                          <a
-                            href="/settings"
+                          <Link
+                            to="/settings"
                             className={classNames(
                               active ? 'bg-gray-100' : '',
                               'block px-4 py-2 text-sm text-gray-700'
                             )}
                           >
                             Settings
-                          </a>
+                          </Link>
                         )}
                       </Menu.Item>
                       <Menu.Item>
@@ -128,13 +149,13 @@ export default function Navbar() {
           {/* Mobile menu button */}
           <div className="sm:hidden px-2 pt-2 pb-3">
             {navigation.map((item) => (
-              <a
+              <Link
                 key={item.name}
-                href={item.href}
+                to={item.href}
                 className="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
               >
                 {item.name}
-              </a>
+              </Link>
             ))}
           </div>
         </>

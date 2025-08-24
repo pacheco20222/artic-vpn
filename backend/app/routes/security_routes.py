@@ -7,6 +7,7 @@ from app.models import twofa_secrets
 from app.database import database
 from app.auth import get_current_user
 from app.schemas import TwoFAVerify
+from app.auth import get_current_user
 
 router = APIRouter()
 
@@ -62,3 +63,10 @@ async def verify_2fa(
         return {"message": "2FA verification successful"}
     else:
         raise HTTPException(status_code=400, detail="Invalid 2FA code")
+    
+@router.get("/2fa/status")
+async def twofa_status(current_user: dict = Depends(get_current_user)):
+    rec = await database.fetch_one(
+        twofa_secrets.select().where(twofa_secrets.c.user_id == current_user["user_id"])
+    )
+    return {"enabled": bool(rec)}

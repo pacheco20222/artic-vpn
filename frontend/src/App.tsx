@@ -1,10 +1,16 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import Navbar from './components/Navbar';
 import ServerList from './pages/ServerList';
 import Myconnections from './pages/MyConnections';
 import SignupPage from './pages/SignupPage';
+import { ConnectionProvider } from './context/ConnectionContext';
+
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  return isAuthenticated() ? children : <Navigate to="/" replace />;
+}
 
 const isAuthenticated = () => {
   return !!localStorage.getItem('access_token');
@@ -12,43 +18,69 @@ const isAuthenticated = () => {
 
 export default function App() {
   const location = useLocation();
-  const showNavbar = location.pathname.startsWith('/dashboard') || location.pathname.startsWith('/servers') || location.pathname.startsWith('/my-connections');
+  const showNavbar = location.pathname.startsWith('/dashboard') || location.pathname.startsWith('/servers') || location.pathname.startsWith('/users/my-connections');
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Show layout only on /dashboard */}
-      {showNavbar && <Navbar />}
+      <ConnectionProvider>
+        {/* Show layout only on /dashboard */}
+        {showNavbar && <Navbar />}
 
-      <main className="pt-6">
-        <Routes>
-          <Route
-            path="/"
-            element={
-              isAuthenticated() ? <Navigate to="/dashboard" /> : <LoginPage />
-            }
-          />
-          <Route
-            path="/dashboard"
-            element={
-              isAuthenticated() ? <DashboardPage /> : <Navigate to="/" />
-            }
-          />
-          <Route
-          path='/servers'
-          element={
-            isAuthenticated() ? <ServerList /> : <Navigate to="/" />
-          }
-          />
-          <Route
-          path='/my-connections'
-          element={isAuthenticated() ? <Myconnections /> : <Navigate to="/" />}
-          />
-          <Route 
-          path='/signup'
-          element={<SignupPage />}
-          />
-        </Routes>
-      </main>
+        <main className="pt-6">
+          <Routes>
+            <Route
+              path="/"
+              element={
+                isAuthenticated() ? <Navigate to="/dashboard" replace /> : <LoginPage />
+              }
+            />
+            <Route
+              path="/login"
+              element={
+                isAuthenticated() ? <Navigate to="/dashboard" replace /> : <LoginPage />
+              }
+            />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/servers'
+              element={
+                <ProtectedRoute>
+                  <ServerList />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/users/my-connections'
+              element={
+                <ProtectedRoute>
+                  <Myconnections />
+                </ProtectedRoute>
+              }
+            />
+            <Route 
+              path='/signup'
+              element={<SignupPage />}
+            />
+            <Route
+              path="*"
+              element={
+                isAuthenticated() ? (
+                  <Navigate to="/dashboard" replace />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            />
+          </Routes>
+        </main>
+      </ConnectionProvider>
     </div>
   );
 }

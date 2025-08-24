@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from app.auth import get_current_user, create_access_token
 import datetime
 import pyotp
-from sqlalchemy import select, join
+from sqlalchemy import select, join, and_
 
 load_dotenv()
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
@@ -70,7 +70,7 @@ async def login_user(user: UserLogin):
     # Step 4: Generate token if all checks pass
     payload = {
         "sub": user.username,
-        "user_id": db_user["id"]
+        "user_id": db_user["id"],
     }
     token = create_access_token(payload)
     return {"access_token": token, "token_type": "bearer", "user_id": db_user["id"]}
@@ -78,9 +78,24 @@ async def login_user(user: UserLogin):
 
 @router.get("/profile")
 async def get_profile(current_user: dict = Depends(get_current_user)):
+    uid = current_user["user_id"]
+    row = await database.fetch_one(
+        users.select().where(users.c.id == uid)
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+    twofa = await database.fetch_one(
+        twofa_secrets.select().where(twofa_secrets.c.user_id == uid)
+    )
     return {
-        "message": "This is your profile.",
-        "user": current_user
+        "user" : {
+            "user_id": row["id"],
+            "username": row["username"],
+            "email": row["email"],
+            "is_active": row["is_active"],
+            "created_at": row["created_at"],
+            "twofa_enabled": bool(twofa)
+        }
     }
 
 @router.post("/connect")
@@ -101,7 +116,7 @@ async def connect_to_server(
     existing = await database.fetch_one(
         connections.select().where(
             (connections.c.user_id == current_user["user_id"]) &
-            (connections.c.disconnected_at == None)
+            (connections.c.disconnected_at.is_(None))
         )
     )
     if existing:
@@ -163,3 +178,38 @@ async def list_user_connections(current_user: dict = Depends(get_current_user)):
 
     result = await database.fetch_all(query)
     return {"connections": result}
+
+
+@router.get("/me/connection")
+async def get_current_connection(current_user: dict = Depends(get_current_user)):
+    # Join connections with vpn_servers to include server details
+    j = join(connections, vpn_servers, connections.c.server_id == vpn_servers.c.id)
+
+    query = (
+        select(
+            connections.c.id.label("connection_id"),
+            connections.c.connected_at,
+            vpn_servers.c.id.label("server_id"),
+            vpn_servers.c.name,
+            vpn_servers.c.country,
+            vpn_servers.c.ip_address,
+        )
+        .select_from(j)
+        .where(
+            (connections.c.user_id == current_user["user_id"]) &
+            (connections.c.disconnected_at.is_(None))
+        )
+        .limit(1)
+    )
+
+    row = await database.fetch_one(query)
+    if not row:
+        return None
+
+    return {
+        "id": row["connection_id"],
+        "user_id": current_user["user_id"],
+        "server_id": row["server_id"],
+        "connected_at": row["connected_at"],
+        "disconnected_at": None,
+    }

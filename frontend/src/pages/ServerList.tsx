@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useConnection } from "../context/ConnectionContext";
 
 interface Server {
   id: number;
@@ -12,23 +13,10 @@ export default function ServerList() {
   const [servers, setServers] = useState<Server[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [connectedServerId, setConnectedServerId] = useState<number | null>(null);
+  const { connection, connect, disconnect } = useConnection();
 
   // Use Vite env for API base (fallback to localhost:8000)
   const API_BASE: string = (import.meta as any).env?.VITE_API_URL || "http://localhost:8000";
-
-  // Load any previously connected server (optional UX nicety)
-  useEffect(() => {
-    const saved = localStorage.getItem("connected_server");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as Server;
-        setConnectedServerId(parsed.id);
-      } catch {
-        // ignore parse errors
-      }
-    }
-  }, []);
 
   useEffect(() => {
     const fetchServers = async () => {
@@ -61,28 +49,25 @@ export default function ServerList() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/connect`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          user_id: parseInt(userId, 10),
-          server_id: server.id,
-        }),
-      });
-
-      if (!response.ok) {
-        const txt = await response.text();
-        throw new Error(txt || "Failed to connect to server");
-      }
-
-      // Persist the chosen server locally so other pages can read it
-      localStorage.setItem("connected_server", JSON.stringify(server));
-      setConnectedServerId(server.id);
+      await connect(server.id);
+      window.dispatchEvent(new CustomEvent('connection-changed', { detail: { connected: true, serverId: server.id } }));
     } catch (err: any) {
       alert(err.message || "An error occurred while connecting to the server.");
+    }
+  };
+
+  const handleDisconnect = async () => {
+    const token = localStorage.getItem("access_token");
+    const userId = localStorage.getItem("user_id");
+    if (!token || !userId) {
+      alert("You need to log in first.");
+      return;
+    }
+    try {
+      await disconnect();
+      window.dispatchEvent(new CustomEvent('connection-changed', { detail: { connected: false, serverId: null } }));
+    } catch (err: any) {
+      alert(err.message || "An error occurred while disconnecting from the server.");
     }
   };
 
@@ -93,9 +78,9 @@ export default function ServerList() {
     <div className="p-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-4">Available VPN Servers</h1>
 
-      {connectedServerId && (
+      {connection && connection.server_id && (
         <div className="mb-4 p-4 bg-green-100 border border-green-300 rounded text-green-800 text-sm">
-          Connected to: <strong>{servers.find((s) => s.id === connectedServerId)?.name}</strong>
+          Connected to: <strong>{servers.find((s) => s.id === connection.server_id)?.name || `#${connection.server_id}`}</strong>
         </div>
       )}
 
@@ -125,17 +110,25 @@ export default function ServerList() {
                 </span>
               </td>
               <td className="px-4 py-2 border">
-                <button
-                  className={`px-3 py-1 text-sm rounded ${
-                    connectedServerId === server.id
-                      ? "bg-green-500 text-white cursor-not-allowed"
-                      : "bg-blue-600 text-white hover:bg-blue-700"
-                  }`}
-                  onClick={() => handleConnect(server)}
-                  disabled={connectedServerId === server.id}
-                >
-                  {connectedServerId === server.id ? "Connected" : "Connect"}
-                </button>
+                {connection?.server_id === server.id ? (
+                  <button
+                    className="px-3 py-1 text-sm rounded bg-red-600 hover:bg-red-700 text-white"
+                    onClick={handleDisconnect}
+                  >
+                    Disconnect
+                  </button>
+                ) : (
+                  <button
+                    className={
+                      "px-3 py-1 text-sm rounded bg-blue-600 text-white hover:bg-blue-700" +
+                      (connection && connection.server_id !== server.id ? " bg-gray-300 text-gray-600 cursor-not-allowed" : "")
+                    }
+                    onClick={() => handleConnect(server)}
+                    disabled={!!connection && connection.server_id !== server.id}
+                  >
+                    Connect
+                  </button>
+                )}
               </td>
             </tr>
           ))}

@@ -21,7 +21,7 @@ app.add_middleware(
 
 
 app.include_router(user_routes.router, prefix="/users", tags=["users"])
-app.include_router(server_routes.router, prefix="/servers", tags=["servers"])
+app.include_router(server_routes.router)
 app.include_router(security_routes.router, prefix="/security", tags=["security"])
 
 @app.on_event("startup")

@@ -1,3 +1,4 @@
+import { useConnection } from "../context/ConnectionContext";
 import { useEffect, useState } from "react";
 
 interface Connection {
@@ -12,18 +13,20 @@ interface Connection {
 
 export default function MyConnections() {
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [tableLoading, setTableLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
 
   // Use env-based API URL (fallback to localhost:8000)
-  const API_BASE: string = (import.meta as any).env?.VITE_API_URL || "http://localhost:8000";
+  const API_BASE: string = (import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:8000";
+
+  const { disconnect, refresh, loading } = useConnection();
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
 
     const fetchConnections = async () => {
       try {
-        const res = await fetch(`${API_BASE}/my-connections`, {
+        const res = await fetch(`${API_BASE}/users/my-connections`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -34,7 +37,7 @@ export default function MyConnections() {
       } catch (err: any) {
         setError(err.message || "Error fetching connections.");
       } finally {
-        setLoading(false);
+        setTableLoading(false);
       }
     };
 
@@ -42,43 +45,24 @@ export default function MyConnections() {
   }, [API_BASE]);
 
   const handleDisconnect = async () => {
-    const token = localStorage.getItem("access_token");
-    const userId = localStorage.getItem("user_id");
-
-    if (!token || !userId) {
-      alert("You must be logged in.");
-      return;
-    }
-
     try {
-      const res = await fetch(`${API_BASE}/disconnect`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ user_id: parseInt(userId, 10) }),
+      await disconnect(); // uses JWT from axios interceptor
+      await refresh();    // refresh global connection state
+      // Also refresh this page table so the latest row shows a disconnected_at
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`${API_BASE}/users/my-connections`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      if (!res.ok) throw new Error("Failed to disconnect.");
-
-      const updated = await res.json();
-      // Expecting backend to return { connection_id, disconnected_at }
-      setConnections((prev) =>
-        prev.map((conn) =>
-          conn.id === updated.connection_id
-            ? { ...conn, disconnected_at: updated.disconnected_at }
-            : conn
-        )
-      );
-      // Optional: also clear any local client flag
-      localStorage.removeItem("connected_server");
+      if (res.ok) {
+        const data = await res.json();
+        setConnections(data.connections || []);
+      }
     } catch (err: any) {
-      alert(err.message || "An error occurred while disconnecting.");
+      alert(err?.response?.data?.detail || err?.message || "An error occurred while disconnecting.");
     }
   };
 
-  if (loading) return <div className="p-6 text-gray-600">Loading connections...</div>;
+  if (tableLoading) return <div className="p-6 text-gray-600">Loading connections...</div>;
 
   return (
     <div className="p-6">
@@ -114,7 +98,8 @@ export default function MyConnections() {
                   {!conn.disconnected_at && (
                     <button
                       onClick={handleDisconnect}
-                      className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
+                      className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 disabled:opacity-50"
+                      disabled={loading}
                     >
                       Disconnect
                     </button>
