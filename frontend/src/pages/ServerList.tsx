@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import WGConfigModal from "../components/WGConfigModal";
 import { useConnection } from "../context/ConnectionContext";
 
 interface Server {
@@ -9,11 +10,24 @@ interface Server {
   is_active: boolean;
 }
 
+interface WGConfigResponse {
+  config_text: string;
+  qr_code_data_url: string; // may be empty if backend lacks qrcode[pil]
+  allocated_ip: string;
+}
+
 export default function ServerList() {
   const [servers, setServers] = useState<Server[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const { connection, connect, disconnect } = useConnection();
+
+  // WireGuard modal state
+  const [wgConfig, setWgConfig] = useState<WGConfigResponse | null>(null);
+  const [wgServerId, setWgServerId] = useState<number | null>(null);
+  const [wgOpen, setWgOpen] = useState(false);
+  const [wgLoading, setWgLoading] = useState(false);
+  const [wgError, setWgError] = useState<string | null>(null);
 
   // Use Vite env for API base (fallback to localhost:8000)
   const API_BASE: string = (import.meta as any).env?.VITE_API_URL || "http://localhost:8000";
@@ -68,6 +82,44 @@ export default function ServerList() {
       window.dispatchEvent(new CustomEvent('connection-changed', { detail: { connected: false, serverId: null } }));
     } catch (err: any) {
       alert(err.message || "An error occurred while disconnecting from the server.");
+    }
+  };
+
+  const handleGetConfig = async (server: Server) => {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      alert("You need to log in first.");
+      return;
+    }
+
+    try {
+      setWgError(null);
+      setWgLoading(true);
+      setWgServerId(server.id);
+
+      const res = await fetch(`${API_BASE}/servers/${server.id}/wireguard/config`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
+      });
+
+      if (!res.ok) {
+        const maybeJson = await res.json().catch(() => ({} as any));
+        const msg = (maybeJson && (maybeJson.detail || maybeJson.message)) || `Request failed (${res.status})`;
+        throw new Error(msg);
+      }
+
+      const data: WGConfigResponse = await res.json();
+      setWgConfig(data);
+      setWgOpen(true);
+    } catch (err: any) {
+      console.error("get-config error:", err);
+      setWgError(err.message || "Failed to generate WireGuard config.");
+    } finally {
+      setWgLoading(false);
     }
   };
 
@@ -129,11 +181,26 @@ export default function ServerList() {
                     Connect
                   </button>
                 )}
+                <button
+                  className="ml-2 px-3 py-1 text-sm rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                  onClick={() => handleGetConfig(server)}
+                  disabled={!server.is_active}
+                >
+                  Get Config
+                </button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      <WGConfigModal
+        open={wgOpen}
+        onClose={() => setWgOpen(false)}
+        config={wgConfig}
+        serverId={wgServerId}
+        loading={wgLoading}
+        error={wgError}
+      />
     </div>
   );
 }
