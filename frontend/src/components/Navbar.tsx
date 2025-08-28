@@ -6,8 +6,9 @@ import { useConnection } from '../context/ConnectionContext'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard' },
-  { name: 'My Connections', href: '/users/my-connections' },
+  { name: 'My Connections', href: '/my-connections' },
   { name: 'Server List', href: '/servers' },
+  { name: 'Security', href: '/security' },
   { name: 'Settings', href: '/settings' }
 ]
 
@@ -71,6 +72,12 @@ export default function Navbar() {
                     Not connected
                   </span>
                 )}
+                <Link
+                  to="/security"
+                  className="hidden sm:inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500"
+                >
+                  Security
+                </Link>
                 <button
                   type="button"
                   className="rounded-full bg-gray-800 p-1 text-gray-400 hover:text-white"

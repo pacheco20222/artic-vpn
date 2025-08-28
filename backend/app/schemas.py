@@ -99,3 +99,16 @@ class MyConnection(BaseModel):
 
 class MyConnectionsResponse(BaseModel):
     connections: List[MyConnection]
+
+
+# --- WireGuard Config ---
+
+class WGConfigResponse(BaseModel):
+    config_text: str         # full client .conf file text
+    qr_code_data_url: str    # data:image/png;base64,... string
+    allocated_ip: str        # IP assigned to the client
+
+class WGConfigResponse(BaseModel):
+    config_text: str
+    qr_code_data_url: str
+    allocated_ip: str

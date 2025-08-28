@@ -4,12 +4,13 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import Navbar from './components/Navbar';
 import ServerList from './pages/ServerList';
-import Myconnections from './pages/MyConnections';
+import MyConnections from './pages/MyConnections';
+import SecurityPage from './pages/SecurityPage';
 import SignupPage from './pages/SignupPage';
 import { ConnectionProvider } from './context/ConnectionContext';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  return isAuthenticated() ? children : <Navigate to="/" replace />;
+  return isAuthenticated() ? children : <Navigate to="/login" replace />;
 }
 
 const isAuthenticated = () => {
@@ -18,7 +19,12 @@ const isAuthenticated = () => {
 
 export default function App() {
   const location = useLocation();
-  const showNavbar = location.pathname.startsWith('/dashboard') || location.pathname.startsWith('/servers') || location.pathname.startsWith('/users/my-connections');
+  const showNavbar = (
+    location.pathname.startsWith('/dashboard') ||
+    location.pathname.startsWith('/servers') ||
+    location.pathname.startsWith('/my-connections') ||
+    location.pathname.startsWith('/security')
+  );
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -57,10 +63,18 @@ export default function App() {
               }
             />
             <Route
-              path='/users/my-connections'
+              path='/my-connections'
               element={
                 <ProtectedRoute>
-                  <Myconnections />
+                  <MyConnections />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/security"
+              element={
+                <ProtectedRoute>
+                  <SecurityPage />
                 </ProtectedRoute>
               }
             />
