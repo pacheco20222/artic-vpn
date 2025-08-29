@@ -2,14 +2,12 @@
 import logging
 import os
 from typing import Optional
-
 from fastapi import FastAPI, Header, HTTPException, status
 from pydantic import BaseModel
 from dotenv import load_dotenv
-
 from .utils import wg
 
-load_dotenv()  # load agent/.env if present
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
 AGENT_SHARED_SECRET = os.getenv("AGENT_SHARED_SECRET")
 WG_INTERFACE = os.getenv("WG_INTERFACE", "wg0")
@@ -44,7 +42,7 @@ class OpOut(BaseModel):
 @app.post("/agent/wg/add-peer", response_model=OpOut)
 def add_peer(
     body: AddPeerIn,
-    x_agent_secret: Optional[str] = Header(None, convert_underscores=False),
+    x_agent_secret: Optional[str] = Header(None, alias="X-Agent-Secret"),
 ):
     require_agent_secret(x_agent_secret)
     try:
@@ -63,7 +61,7 @@ def add_peer(
 @app.post("/agent/wg/remove-peer", response_model=OpOut)
 def remove_peer(
     body: RemovePeerIn,
-    x_agent_secret: Optional[str] = Header(None, convert_underscores=False),
+    x_agent_secret: Optional[str] = Header(None, alias="X-Agent-Secret"),
 ):
     require_agent_secret(x_agent_secret)
     try:
@@ -76,3 +74,13 @@ def remove_peer(
     except Exception as e:
         log.exception("remove-peer failed")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Health endpoint
+@app.get("/agent/health")
+def health():
+    return {
+        "ok": True,
+        "interface": WG_INTERFACE,
+        "dry_run": DRY_RUN,
+    }

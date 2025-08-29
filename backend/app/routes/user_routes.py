@@ -11,6 +11,7 @@ from app.auth import get_current_user, create_access_token
 import datetime
 import pyotp
 from sqlalchemy import select, join, and_
+import httpx
 
 load_dotenv()
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
@@ -128,6 +129,32 @@ async def connect_to_server(
         server_id=payload.server_id,
     )
     await database.execute(insert_query)
+
+    # Call VPN Agent to apply the peer
+    try:
+        AGENT_URL = os.getenv("AGENT_URL")
+        AGENT_SECRET = os.getenv("AGENT_SHARED_SECRET")
+
+        # Build peer payload
+        peer_payload = {
+            "public_key": payload.public_key,
+            "allowed_ips": payload.allowed_ips,
+            "persistent_keepalive": 25
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{AGENT_URL}/agent/wg/add-peer",
+                json=peer_payload,
+                headers={"X-Agent-Secret": AGENT_SECRET}
+            )
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=500, detail="Failed to apply peer on VPN agent")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
+
     return {"message": f"Connected to server {payload.server_id}"}
 
 @router.post("/disconnect")

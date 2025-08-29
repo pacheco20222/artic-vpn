@@ -74,6 +74,8 @@ class TwoFAVerify(BaseModel):
 class ConnectRequest(BaseModel):
     user_id: int
     server_id: int
+    public_key: str
+    client_ip: str
 
 
 class DisconnectRequest(BaseModel):
