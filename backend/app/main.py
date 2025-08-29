@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from app.database import database
-from app.routes import user_routes, server_routes, security_routes
+from app.routes import user_routes, server_routes, security_routes, agent_routes
 from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
@@ -22,6 +22,7 @@ app.add_middleware(
 
 app.include_router(user_routes.router, prefix="/users", tags=["users"])
 app.include_router(server_routes.router)
+app.include_router(agent_routes.router)
 app.include_router(security_routes.router, prefix="/security", tags=["security"])
 
 @app.on_event("startup")

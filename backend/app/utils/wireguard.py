@@ -1,48 +1,4 @@
 from __future__ import annotations
-
-import base64
-import io
-import os
-import re
-import secrets
-from ipaddress import ip_network, ip_address
-from typing import Optional, Tuple, Iterable, Set
-
-from databases import Database
-from sqlalchemy import select
-
-from app.models import wg_allocations, vpn_servers
-
-def _b64_32_bytes() -> str:
-    raw = os.urandom(32)
-    return base64.standard_b64encode(raw).decode(ascii)
-
-def generate_keypair() -> Tuple[str, str]:
-    priv = _b64_32_bytes()
-    pub = _b64_32_bytes()
-    return priv, pub
-
-_DEFAULT_CIDR = "10.8.0.0/24"
-
-async def next_free_ip(
-    database: Database,
-    server_id: int,
-    base_cidr: str = _DEFAULT_CIDR,
-    start_host_index: int = 10,
-) -> str:
-    query = (
-        select(wg_allocations.c.client_ip).where(wg_allocations.c.server_id == server_id).where(wg_allocations.c.revoked_at.is_(None))
-    )
-    rows = await database.fetch_all(query)
-    taken: Set[str] = set()
-    for r in rows:
-        ip_str = str(r[0])
-        if "/" in ip_str:
-            ip_str = ip_str.split("/", 1)[0]
-        taken.add(ip_str)
-    net = ip_network(base_cidr)
-    
-    
 """WireGuard helper utilities (simulation-friendly).
 
 This module centralizes the small pieces we need to:
@@ -54,8 +10,6 @@ This module centralizes the small pieces we need to:
 In Step 4 (real server integration), we'll swap the key generation to use
 real Curve25519 keys and push peers via an agent or SSH.
 """
-from __future__ import annotations
-
 import base64
 import io
 import os
